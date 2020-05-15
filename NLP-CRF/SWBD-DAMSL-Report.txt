@@ -1,0 +1,40 @@
+Assignment 2 Report
+
+Name: Sonia Godhwani
+USC ID: 2690272017
+
+1. Describe how you evaluated your baseline and advanced features:
+
+I wrote a code for random sampling and divided the data as 75% training data and 25% test data.
+I sampled the data multiple times and calculated the range of accuracy for both baseline tagger and advanced tagger.
+
+
+2. Accuracy of baseline features during your evaluation:
+
+Accuracy of baseline features was around 0.73 which is 72.75% (± 0.4%) dpending on the sample.
+The exact accuracy of one of the samples is 0.7306434696773397
+
+
+3. Describe your advanced feature set:
+
+The advanced feature set includes:
+    1. All the tokens
+    2. All the POS tags
+    3. Speaker change
+    4. First Utterance
+    5. Biagrams for each tokens <Previous token, current token>
+    6. Bigrams for each POS <Previous POS, current token>
+    7. Feature for wh questions like - "who", "what", "when", "where" etc.
+    7. Feature for laughter and other noise in conversation
+    8. Feature for question - ends with "?"
+
+
+4. If you tried and rejected alternate advanced feature sets, please describe them:
+
+I tried triagrams of tokens and parts of speech as token but the acuracy reduced maybe it was because of over fitting.
+I also tried using last word of the sentence and last POS as feature but the accurancy was reduced.
+I also used a feature of showing presence of words like ["yes","yeah","okay","sure"...] to show acknowledegement but it did not help.
+
+5. Accuracy of advanced features was:
+
+The accuracy using the above advanced features was around 0.745 which is 74.5%
