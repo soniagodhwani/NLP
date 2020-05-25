@@ -188,20 +188,25 @@ class SequenceModel(nn.Module):
     super(SequenceModel, self).__init__()
 
     self.hidden_size = hidden_size
-
     self.input2hidden = nn.Linear(num_terms + hidden_size, hidden_size)
     self.input2output = nn.Linear(num_terms + hidden_size, num_tags)
     self.softmax = nn.LogSoftmax(dim=1)
 
   # TODO(student): You must implement this.
-  def save_model(self, filename):
+  def save_model(self, filename,e,loss):
     """Saves model to a file."""
-    pass
+    torch.save({
+      'epoch': e,
+      'model_state_dict': self.state_dict(),
+      'optimizer_state_dict': "None",
+      'loss': loss,
+    }, filename)
 
   # TODO(student): You must implement this.
   def load_model(self, filename):
     """Loads model from a file."""
-    pass
+    checkpoint = torch.load(filename)
+    self.load_state_dict(checkpoint['model_state_dict'])
 
   # TODO(student): You may implement this if you choose.
   def build(self):
@@ -210,7 +215,6 @@ class SequenceModel(nn.Module):
     It is up to you how you implement this function, as long as forward
     works.
     """
-    pass
 
   ## TODO(student): You must implement this.
   def forward(self, input_vector, hidden_vector):
@@ -220,10 +224,27 @@ class SequenceModel(nn.Module):
     
     It is up to you how you implement this function.
     """
-    pass 
+
+    comb_input = torch.cat((input_vector,hidden_vector),1)
+    output =  self.input2output(comb_input)
+    hidden_vector = self.input2hidden(comb_input)
+    output = self.softmax(output)
+    return output,hidden_vector
+
+def getOneHotVector(term,tag,num_terms,num_tags):
+  term_vector = torch.zeros(1,num_terms)
+  term_vector[0][term] = 1
+
+  if tag:
+    tag_vector = torch.zeros(1,num_tags)
+    tag_vector[0][tag] = 1
+  else:
+    tag_vector = None
+
+  return term_vector,tag_vector
 
 # TODO(student): You must implement this.
-def train(model, terms, tags, lengths, batch_size=32, learn_rate=1e-7):
+def train(model, terms, tags, lengths,num_terms,num_tags, hidden_size,num_epoch,model_file,batch_size=32, learn_rate=0.005):
   """Performs updates on the model given training data.
 
   This will be called with numpy arrays similar to the ones created in ReadData
@@ -238,10 +259,33 @@ def train(model, terms, tags, lengths, batch_size=32, learn_rate=1e-7):
       but it is only here so that you can experiment with a "good learn rate"
       from your main block.
   """
-  pass
+  l = terms.shape[0]
+
+  for i in range(0,100):
+    print i
+    sent_terms = terms[i]
+    sent_tags = tags[i]
+    sent_len = lengths[i]
+    model.zero_grad()
+    hidden_vector = torch.zeros(1,hidden_size)
+
+
+    for j in range(0,sent_len):
+
+      oneHot_term, oneHot_tag = getOneHotVector(sent_terms[j],sent_tags[j],num_terms,num_tags)
+      output,hidden_vector = model(oneHot_term,hidden_vector)
+      criterion = nn.MSELoss()
+      loss = criterion(output,oneHot_tag)
+      loss.backward(retain_graph = True)
+
+    for p in model.parameters():
+      p.data.add_(p.grad.data, alpha=-learn_rate)
+
+  model.save_model(model_file,num_epoch,loss)
+
 
 # TODO(student): You must implement this.
-def evaluate(model, terms, lengths):
+def evaluate(model, terms, lengths,num_terms,hidden_size):
   """Performs updates on the model given training training data.
 
   This will be called with numpy arrays similar to the ones created in ReadData
@@ -252,7 +296,15 @@ def evaluate(model, terms, lengths):
   Returns:
     predicted_tags: int64 numpy array of size (# sentences, max sentence length)
   """
-  pass
+  l = terms.shape[0]
+  for i in range(0, l):
+    sent_terms = terms[i]
+    length = lengths[i]
+    hidden_vector = torch.zeros(1, hidden_size)
+    for j in range(0, length):
+      oneHot_term, oneHot_tag = getOneHotVector(sent_terms[j], None, num_terms, 0)
+      output, hidden_vector = model(oneHot_term, hidden_vector)
+      print output
 
 
 def main(args):
@@ -263,33 +315,34 @@ def main(args):
   (train_terms, train_tags, train_lengths) = train_data
   (test_terms, test_tags, test_lengths) = test_data
 
-  model = SequenceModel() # <student fills in>
+  model = SequenceModel(num_terms=len(term_index),num_tags=len(tag_index),max_length=max(train_lengths) ) # <student fills in>
   model.build()
   start_time = time.time()
   for j in xrange(args.e):
-    train(model, train_terms, train_tags, train_lengths)
-    print('Finished epoch %i. Evaluating ...' % (j+1))
-    predicted_tags = evaluate(model, test_terms, test_lengths)
+    #train(model, train_terms, train_tags, train_lengths,len(term_index),len(tag_index),300,j,args.m)
+    #print('Finished epoch %i. Evaluating ...' % (j+1))
+    model.load_model(args.m)
+    predicted_tags = evaluate(model, test_terms, test_lengths,len(term_index),300)
     if (time.time() - start_time) > args.t:
       break
-  model.save_model(args.m)
+    #model.save_model(args.m,j)
   pickle.dump(predicted_tags, open(args.o, 'wb'))
 
-# if __name__ == '__main__':
-#   parser = argparse.ArgumentParser(description='Train RNN.')
-#   parser.add_argument('-i', type=str, help='training file path.')
-#   parser.add_argument('-m', type=str, help='Model output path.')
-#   parser.add_argument('-o', type=str, help='Predictions output path.')
-#   parser.add_argument('-t', type=float, help='Length of time training (seconds).')
-#   parser.add_argument('-e', type=int, help='Num epochs.')
-#   args = parser.parse_args()
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description='Train RNN.')
+  parser.add_argument('-i', type=str, help='training file path.')
+  parser.add_argument('-m', type=str, help='Model output path.')
+  parser.add_argument('-o', type=str, help='Predictions output path.')
+  parser.add_argument('-t', type=float, help='Length of time training (seconds).')
+  parser.add_argument('-e', type=int, help='Num epochs.')
+  args = parser.parse_args()
+  print("hi")
+  main(args)
+
+# a = {}
+# b = {}
+# x=  DatasetReader.ReadFile("test.txt",a,b)
+# print a
+# print b
 #
-#   main(args)
-
-a = {}
-b = {}
-x=  DatasetReader.ReadFile("test.txt",a,b)
-print a
-print b
-
-print DatasetReader.BuildMatrices(x)
+# print DatasetReader.BuildMatrices(x)
